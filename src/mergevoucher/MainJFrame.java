@@ -5,8 +5,17 @@
  */
 package mergevoucher;
 
+import com.itextpdf.text.Document;
+import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.pdf.PdfCopy;
+import com.itextpdf.text.pdf.PdfReader;
+import com.itextpdf.text.pdf.parser.PdfTextExtractor;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -452,41 +461,87 @@ public class MainJFrame extends javax.swing.JFrame {
     private void jBtnDeletePagesActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jBtnDeletePagesActionPerformed
         // TODO add your handling code here:
         //get  number of pages to be del
-        String strPageNumber =jTextPageNumbers.getText();
-        deletePages(pretreatmentFile,strPageNumber);
+        String strPageNumber =jTextPageNumbers.getText();  
+        if(strHasNumber(strPageNumber)){//has page number to for pdf page?
+            try {
+                deletePages(pretreatmentFile,strPageNumber);
+                //System.out.println("delete Page button clicked.");
+            } catch (IOException | DocumentException ex) {
+                Logger.getLogger(MainJFrame.class.getName()).log(Level.SEVERE, null, ex);
+            }   
+        }   else{
+            System.out.println("Please input page numbers to be delete.");
+        }        
     }//GEN-LAST:event_jBtnDeletePagesActionPerformed
    
-   private void deletePages(File file,String str){
+   private void deletePages(File file,String str) throws IOException, DocumentException{
        //open the old pdf file and open a blank new one 
-       int pdfPageNumber= 100; //get pdf page number
+       String fullFileName = file.getPath();
+       //System.out.println(fullFileName);
+       PdfReader reader = new PdfReader( fullFileName);		
+       Document document = new Document(reader.getPageSizeWithRotation(1));
+       String out = fullFileName.replaceFirst(".pdf", "(new).pdf");
+       PdfCopy copy =new PdfCopy(document,new FileOutputStream(out));
+       document.open();
+       int pdfPageNumber= reader.getNumberOfPages(); //get pdf page number
        //change pageNumber string to int array
-       int[] preservePages = getPages(pdfPageNumber,str);
-       
+       Boolean[] preservePages = getPages(pdfPageNumber,str);
        //copy pages except need delete to new pdf file
+       for(int i=1;i<=pdfPageNumber;i++){
+            //filter not preserve pages 
+           if(preservePages[i]){ //if preserve,copy;else bypass
+               //String content = PdfTextExtractor.getTextFromPage(reader, i); //读取第i页的文档内容;
+               copy.addPage(copy.getImportedPage(reader,i));
+           }           
+        }			
+        System.out.println("New pdf file is:"+fullFileName.replaceFirst(".pdf", "(new).pdf"));
        //close files 
-       
+       reader.close();	
+       document.close();
+       copy.close();
    }
-   private int[] getPages(int pdfPageNumber,String str){
-       int[] pages =new int[pdfPageNumber];
-       for(int i=0;i<pdfPageNumber;i++){
-           pages[i] = 1;
+   private Boolean[] getPages(int pdfPageNumber,String str){
+       //parase a page number string to int array
+       //filter the whole page number array ,
+       final Boolean NOTPRESERVE = false;
+       final Boolean PRESERVE = true;
+       
+       Boolean[] pages =new Boolean[pdfPageNumber+1]; //no page 0 in pdf file
+       for(int i=0;i<=pdfPageNumber;i++){ 
+           pages[i] = PRESERVE;//init all pages to preserve
        }
        str = str.replaceAll("，" ,  ",");
        String[] strPages = str.split(",");
        for (String strPage : strPages) {
+           //pages to be delete set to NOTPRESERVE
            int n = strPage.indexOf("-");
            if (n >= 0) {
                //page number range with "-"?
                int j = Integer.parseInt(strPage.substring(0, n));
-               int m = Integer.parseInt(strPage.substring(n));
+               int m = Integer.parseInt(strPage.substring(n+1));
                for(int i=j;i<=m;i++){
-                   pages[i] = 0;
+                   pages[i] = NOTPRESERVE;
                }
            } else {               
-               pages[Integer.parseInt(strPage)] = 0;
+               pages[Integer.parseInt(strPage)] = NOTPRESERVE;
            }
        }
        return (pages);
+   }
+   private static Boolean strHasNumber(String str){
+       if(str == null || str.equals("")){
+           return(false);
+       }else{
+           Boolean hasNumber = false;
+           for(int i=0;i<=9;i++){
+               String s = i+"";
+               if(str.contains(s)){
+                   hasNumber = true;
+                   break;
+               }
+           }
+           return(hasNumber);
+       }
    }
     /**
      * @param args the command line arguments
